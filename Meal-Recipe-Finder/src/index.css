@@ -1,0 +1,251 @@
+* {
+    box-sizing: border-box;
+  }
+  
+  /* Screen reader only class */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+  
+  /* Skip link */
+  .skip-link {
+    position: absolute;
+    top: -100vh;
+    left: 0;
+    background-color: #5F9EA0;
+    color: #fff;
+    padding: 0.5rem;
+    z-index: 100;
+  }
+  
+  .skip-link:focus {
+    top: 0;
+  }
+  
+  body {
+    background: #2d2013;
+    color: #fff;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 1rem;
+    margin: 0;
+    line-height: 1.6;
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+  
+  
+  .container {
+    margin: auto;
+    max-width: 50rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem;
+  }
+  
+  .flex {
+    display: flex;
+  }
+  
+  input,
+  button {
+    border: 1px solid #dedede;
+    border-top-left-radius: 0.25rem;
+    border-bottom-left-radius: 0.25rem;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.625rem;
+    margin: 0;
+    font-family: inherit;
+  }
+  
+  input:focus-visible,
+  button:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+  
+  input[type='text'] {
+    width: 18.75rem;
+  }
+  
+  .search-btn {
+    cursor: pointer;
+    border-left: 0;
+    border-radius: 0;
+    border-top-right-radius: 0.25rem;
+    border-bottom-right-radius: 0.25rem;
+    background-color: #f0f0f0;
+    color: #333;
+    transition: background-color 0.2s ease-in;
+  }
+  
+  .search-btn:hover {
+    background-color: #ddd;
+  }
+  
+  .search-btn:active {
+    background-color: #ccc;
+  }
+  
+  .random-btn {
+    cursor: pointer;
+    margin-left: 0.625rem;
+    border-top-right-radius: 0.25rem;
+    border-bottom-right-radius: 0.25rem;
+    background-color: #f0f0f0;
+    color: #333;
+    transition: background-color 0.2s ease-in;
+  }
+  
+  .random-btn:hover {
+    background-color: #ddd;
+  }
+  
+  .random-btn:active {
+    background-color: #ccc;
+  }
+  
+  .meals {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-gap: 1.25rem;
+    margin-top: 1.25rem;
+    width: 100%;
+  }
+  
+  .meal {
+    cursor: pointer;
+    position: relative;
+    height: 11.25rem;
+    width: 11.25rem;
+    text-align: center;
+  }
+  
+  .meal img {
+    width: 100%;
+    height: 100%;
+    border: 0.25rem #fff solid;
+    border-radius: 0.125rem;
+    object-fit: cover;
+  }
+  
+  .meal-info {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s ease-in;
+    opacity: 0;
+  }
+  
+  .meal:hover .meal-info,
+  .meal:focus-within .meal-info {
+    opacity: 1;
+  }
+  
+  .single-meal {
+    margin: 1.875rem auto;
+    width: 70%;
+  }
+  
+  .single-meal img {
+    width: 18.75rem;
+    margin: 0.9375rem;
+    border: 0.25rem #fff solid;
+    border-radius: 0.125rem;
+    object-fit: cover;
+  }
+  
+  .single-meal-info {
+    margin: 1.25rem;
+    padding: 0.625rem;
+    border: 0.125rem #e09850 dashed;
+    border-radius: 0.3125rem;
+  }
+  
+  .single-meal p {
+    margin: 0;
+    letter-spacing: 0.03125rem;
+    line-height: 1.5;
+  }
+  
+  .single-meal ul {
+    padding-left: 0;
+    list-style-type: none;
+  }
+  
+  .single-meal ul li {
+    border: 1px solid #ededed;
+    border-radius: 0.3125rem;
+    background-color: #fff;
+    display: inline-block;
+    color: #2d2013;
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 0.3125rem;
+    margin: 0 0.3125rem 0.3125rem 0;
+  }
+  
+  .loading {
+    color: #e09850;
+    font-weight: bold;
+  }
+  
+  .error {
+    color: #ff6b6b;
+    font-weight: bold;
+  }
+  
+  @media (max-width: 50rem) {
+    .meals {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  @media (max-width: 43.75rem) {
+    .meals {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  
+    .meal {
+      height: 12.5rem;
+      width: 12.5rem;
+    }
+  }
+  @media (max-width: 31.25rem) {
+    input[type='text'] {
+      width: 100%;
+    }
+  
+    .meals {
+      grid-template-columns: 1fr;
+    }
+  
+    .meal {
+      height: 18.75rem;
+      width: 18.75rem;
+    }
+    
+    .single-meal {
+      width: 90%;
+    }
+  }
