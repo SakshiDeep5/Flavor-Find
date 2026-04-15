@@ -1,430 +1,368 @@
-/**
- * Meal Finder App - Production Grade
- * Implements modern JavaScript patterns, error handling, caching, and accessibility
- */
+import { useEffect, useRef, useState } from 'react';
+import './App.css';
 
-const MealFinder = (() => {
-  // ==================== CONFIGURATION ====================
-  const CONFIG = {
-    API_BASE: 'https://www.themealdb.com/api/json/v1/1',
-    ENDPOINTS: {
-      SEARCH: '/search.php',
-      LOOKUP: '/lookup.php',
-      RANDOM: '/random.php'
-    },
-    CACHE_DURATION: 30 * 60 * 1000, // 30 minutes
-    DEBOUNCE_DELAY: 300, // milliseconds
-    REQUEST_TIMEOUT: 8000 // milliseconds
-  };
+const API_BASE = 'https://www.themealdb.com/api/json/v1/1';
+const CACHE_DURATION = 30 * 60 * 1000;
+const REQUEST_TIMEOUT = 8000;
 
-  // ==================== STATE MANAGEMENT ====================
-  const state = {
-    cache: new Map(),
-    abortController: null,
-    debounceTimer: null,
-    lastSearchTime: 0,
-    isLoading: false
-  };
+function App() {
+  const [searchText, setSearchText] = useState('');
+  const [results, setResults] = useState([]);
+  const [selectedMeal, setSelectedMeal] = useState(null);
+  const [status, setStatus] = useState('Search for a meal to get started.');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // ==================== DOM REFERENCES ====================
-  const DOM = {
-    search: document.getElementById('search'),
-    submit: document.getElementById('submit'),
-    random: document.getElementById('random'),
-    mealsEl: document.getElementById('meals'),
-    resultHeading: document.getElementById('result-heading'),
-    singleMealEl: document.getElementById('single-meal')
-  };
+  const cacheRef = useRef(new Map());
+  const abortRef = useRef(null);
+  const timeoutRef = useRef(null);
 
-  // ==================== UTILITY FUNCTIONS ====================
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
 
-  /**
-   * Generate cache key based on request type and parameters
-   */
-  const getCacheKey = (endpoint, param) => `${endpoint}:${param}`;
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
-  /**
-   * Check if cache entry is still valid
-   */
-  const isCacheValid = (timestamp) => {
-    return Date.now() - timestamp < CONFIG.CACHE_DURATION;
-  };
+  const escapeHtml = (value) =>
+    String(value ?? '').replace(/[&<>"']/g, (character) => {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+      };
 
-  /**
-   * Get from cache if valid
-   */
-  const getFromCache = (key) => {
-    const cached = state.cache.get(key);
-    if (cached && isCacheValid(cached.timestamp)) {
-      return cached.data;
+      return map[character];
+    });
+
+  const getCacheKey = (type, value) => `${type}:${value}`;
+
+  const getCachedData = (key) => {
+    const cachedEntry = cacheRef.current.get(key);
+
+    if (!cachedEntry) {
+      return null;
     }
-    state.cache.delete(key);
-    return null;
+
+    if (Date.now() - cachedEntry.timestamp > CACHE_DURATION) {
+      cacheRef.current.delete(key);
+      return null;
+    }
+
+    return cachedEntry.data;
   };
 
-  /**
-   * Set cache entry
-   */
-  const setCache = (key, data) => {
-    state.cache.set(key, {
+  const setCachedData = (key, data) => {
+    cacheRef.current.set(key, {
       data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   };
 
-  /**
-   * Debounce function to limit API calls during rapid input
-   */
-  const debounce = (callback, delay) => {
-    return (...args) => {
-      clearTimeout(state.debounceTimer);
-      state.debounceTimer = setTimeout(() => callback(...args), delay);
-    };
-  };
-
-  /**
-   * Abort previous request if still ongoing
-   */
-  const abortPreviousRequest = () => {
-    if (state.abortController) {
-      state.abortController.abort();
-    }
-    state.abortController = new AbortController();
-  };
-
-  /**
-   * Show loading state
-   */
-  const showLoading = () => {
-    DOM.resultHeading.innerHTML = '<p class="loading">Loading...</p>';
-  };
-
-  /**
-   * Show error message
-   */
-  const showError = (message) => {
-    DOM.resultHeading.innerHTML = `<p class="error" role="alert">${message}</p>`;
-  };
-
-  /**
-   * Escape HTML to prevent XSS attacks
-   */
-  const escapeHtml = (text) => {
-    const map = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
-  };
-
-  /**
-   * Fetch with timeout
-   */
-  const fetchWithTimeout = async (url, options = {}) => {
-    const controller = options.signal ? new AbortController() : state.abortController;
-    const timeoutId = setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        throw new Error('Request was cancelled or timed out');
-      }
-      throw error;
-    }
-  };
-
-  // ==================== API FUNCTIONS ====================
-
-  /**
-   * Search for meals by name
-   */
-  const searchMeal = async (e) => {
-    e.preventDefault();
-
-    // Clear single meal view
-    DOM.singleMealEl.innerHTML = '';
-
-    // Get search term
-    const term = DOM.search.value.trim();
-
-    // Validate input
-    if (!term) {
-      showError('Please enter a search term');
-      DOM.search.focus();
-      return;
+  const createAbortController = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
     }
 
-    // Cancel previous requests
-    abortPreviousRequest();
-
-    try {
-      showLoading();
-
-      // Check cache first
-      const cacheKey = getCacheKey('search', term);
-      let data = getFromCache(cacheKey);
-
-      if (!data) {
-        // Fetch from API
-        const url = `${CONFIG.API_BASE}${CONFIG.ENDPOINTS.SEARCH}?s=${encodeURIComponent(term)}`;
-        data = await fetchWithTimeout(url, { signal: state.abortController.signal });
-        setCache(cacheKey, data);
-      }
-
-      // Display results
-      displaySearchResults(data, term);
-
-      // Clear search field
-      DOM.search.value = '';
-    } catch (error) {
-      handleError(error, 'Failed to search meals');
-    }
-  };
-
-  /**
-   * Fetch meal by ID
-   */
-  const getMealById = async (mealID) => {
-    if (!mealID || mealID.trim() === '') {
-      showError('Invalid meal ID');
-      return;
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
     }
 
-    abortPreviousRequest();
+    abortRef.current = new AbortController();
+    timeoutRef.current = window.setTimeout(() => {
+      abortRef.current?.abort();
+    }, REQUEST_TIMEOUT);
 
-    try {
-      showLoading();
-
-      // Check cache first
-      const cacheKey = getCacheKey('lookup', mealID);
-      let data = getFromCache(cacheKey);
-
-      if (!data) {
-        // Fetch from API
-        const url = `${CONFIG.API_BASE}${CONFIG.ENDPOINTS.LOOKUP}?i=${encodeURIComponent(mealID)}`;
-        data = await fetchWithTimeout(url, { signal: state.abortController.signal });
-        setCache(cacheKey, data);
-      }
-
-      if (data.meals && data.meals.length > 0) {
-        addMealToDOM(data.meals[0]);
-      } else {
-        showError('Meal not found');
-      }
-    } catch (error) {
-      handleError(error, 'Failed to fetch meal details');
-    }
+    return abortRef.current;
   };
 
-  /**
-   * Get random meal
-   */
-  const getRandomMeal = async () => {
-    // Clear previous results
-    DOM.mealsEl.innerHTML = '';
-    DOM.resultHeading.innerHTML = '';
+  const fetchJson = async (url) => {
+    const controller = createAbortController();
+    const response = await fetch(url, { signal: controller.signal });
 
-    abortPreviousRequest();
-
-    try {
-      showLoading();
-
-      const url = `${CONFIG.API_BASE}${CONFIG.ENDPOINTS.RANDOM}`;
-      const data = await fetchWithTimeout(url, { signal: state.abortController.signal });
-
-      if (data.meals && data.meals.length > 0) {
-        addMealToDOM(data.meals[0]);
-      } else {
-        showError('Failed to fetch random meal');
-      }
-    } catch (error) {
-      handleError(error, 'Failed to fetch random meal');
-    }
-  };
-
-  // ==================== DOM MANIPULATION ====================
-
-  /**
-   * Display search results
-   */
-  const displaySearchResults = (data, term) => {
-    DOM.resultHeading.innerHTML = '';
-
-    if (!data.meals || data.meals.length === 0) {
-      DOM.mealsEl.innerHTML = '';
-      showError(`No search results found for "${escapeHtml(term)}". Try different keywords!`);
-      return;
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
 
-    DOM.resultHeading.innerHTML = `<h2>Results for "${escapeHtml(term)}":</h2>`;
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
 
-    DOM.mealsEl.innerHTML = data.meals
-      .map(meal => createMealCard(meal))
-      .join('');
+    return response.json();
   };
 
-  /**
-   * Create meal card HTML
-   */
-  const createMealCard = (meal) => {
-    return `
-      <div class="meal">
-        <img 
-          src="${meal.strMealThumb}" 
-          alt="${escapeHtml(meal.strMeal)}"
-          loading="lazy"
-        />
-        <div class="meal-info" data-mealid="${escapeHtml(meal.idMeal)}" tabindex="0" role="button">
-          <h3>${escapeHtml(meal.strMeal)}</h3>
-        </div>
-      </div>
-    `;
-  };
-
-  /**
-   * Add meal details to DOM
-   */
-  const addMealToDOM = (meal) => {
-    const ingredients = extractIngredients(meal);
-
-    DOM.singleMealEl.innerHTML = `
-      <div class="single-meal">
-        <h1>${escapeHtml(meal.strMeal)}</h1>
-        <img 
-          src="${meal.strMealThumb}" 
-          alt="${escapeHtml(meal.strMeal)}"
-        />
-        <div class="single-meal-info">
-          ${meal.strCategory ? `<p><strong>Category:</strong> ${escapeHtml(meal.strCategory)}</p>` : ''}
-          ${meal.strArea ? `<p><strong>Origin:</strong> ${escapeHtml(meal.strArea)}</p>` : ''}
-        </div>
-        <div class="main">
-          <h2>Instructions</h2>
-          <p>${escapeHtml(meal.strInstructions)}</p>
-          <h2>Ingredients</h2>
-          <ul>
-            ${ingredients.map(ing => `<li>${escapeHtml(ing)}</li>`).join('')}
-          </ul>
-        </div>
-      </div>
-    `;
-
-    // Scroll to view
-    DOM.singleMealEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  /**
-   * Extract ingredients from meal object
-   */
   const extractIngredients = (meal) => {
     const ingredients = [];
 
-    for (let i = 1; i <= 20; i++) {
-      const ingredient = meal[`strIngredient${i}`];
-      const measure = meal[`strMeasure${i}`];
+    for (let index = 1; index <= 20; index += 1) {
+      const ingredient = meal[`strIngredient${index}`];
+      const measure = meal[`strMeasure${index}`];
 
       if (ingredient && ingredient.trim()) {
-        ingredients.push(`${ingredient} - ${measure || 'to taste'}`);
+        ingredients.push(`${ingredient} - ${measure?.trim() || 'to taste'}`);
       }
     }
 
     return ingredients;
   };
 
-  /**
-   * Handle and display errors
-   */
-  const handleError = (error, fallbackMessage) => {
-    console.error('Meal Finder Error:', error);
+  const setLoadingState = (message) => {
+    setIsLoading(true);
+    setError('');
+    setStatus(message);
+  };
 
-    if (error.name === 'AbortError') {
-      return; // Silent abort - user cancelled the request
+  const handleAppError = (incomingError, fallbackMessage) => {
+    if (incomingError?.name === 'AbortError') {
+      return;
     }
 
-    if (error.message.includes('timed out')) {
-      showError('Request timed out. Please check your connection and try again.');
-    } else if (error.message.includes('Failed to fetch')) {
-      showError('Network error. Please check your connection.');
+    const message = String(incomingError?.message || '');
+
+    if (message.toLowerCase().includes('http error')) {
+      setError('The meal service returned an error. Please try again.');
+    } else if (message.toLowerCase().includes('failed to fetch')) {
+      setError('Network error. Check your connection and try again.');
+    } else if (message.toLowerCase().includes('timeout')) {
+      setError('Request timed out. Please try again.');
     } else {
-      showError(fallbackMessage || error.message);
+      setError(fallbackMessage || message || 'Something went wrong.');
+    }
+
+    setStatus('');
+  };
+
+  const searchMeals = async (event) => {
+    event.preventDefault();
+
+    const term = searchText.trim();
+
+    if (!term) {
+      setResults([]);
+      setSelectedMeal(null);
+      setError('Please enter a search term.');
+      setStatus('');
+      return;
+    }
+
+    setLoadingState(`Searching for ${term}...`);
+    setSelectedMeal(null);
+
+    try {
+      const cacheKey = getCacheKey('search', term.toLowerCase());
+      const cachedData = getCachedData(cacheKey);
+      const data =
+        cachedData ||
+        (await fetchJson(`${API_BASE}/search.php?s=${encodeURIComponent(term)}`));
+
+      if (!cachedData) {
+        setCachedData(cacheKey, data);
+      }
+
+      const meals = data?.meals || [];
+      setResults(meals);
+
+      if (meals.length === 0) {
+        setError(`No results found for ${term}. Try a different keyword.`);
+        setStatus('');
+      } else {
+        setError('');
+        setStatus(`Showing ${meals.length} result${meals.length === 1 ? '' : 's'} for ${term}.`);
+      }
+
+      setSearchText('');
+    } catch (incomingError) {
+      handleAppError(incomingError, 'Failed to search meals.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // ==================== EVENT HANDLERS ====================
+  const openMeal = async (mealId) => {
+    if (!mealId) {
+      setError('Invalid meal selection.');
+      return;
+    }
 
-  /**
-   * Handle meal card click - use event delegation and composedPath
-   */
-  const handleMealClick = (e) => {
-    // Use composedPath() instead of deprecated e.path
-    const path = e.composedPath();
-    const mealInfo = path.find(item => {
-      return item.classList && item.classList.contains('meal-info');
-    });
+    setLoadingState('Loading meal details...');
 
-    if (mealInfo) {
-      const mealID = mealInfo.getAttribute('data-mealid');
-      getMealById(mealID);
+    try {
+      const cacheKey = getCacheKey('lookup', mealId);
+      const cachedData = getCachedData(cacheKey);
+      const data =
+        cachedData ||
+        (await fetchJson(`${API_BASE}/lookup.php?i=${encodeURIComponent(mealId)}`));
+
+      if (!cachedData) {
+        setCachedData(cacheKey, data);
+      }
+
+      const meal = data?.meals?.[0] || null;
+
+      if (!meal) {
+        setError('Meal not found.');
+        setSelectedMeal(null);
+        setStatus('');
+        return;
+      }
+
+      setSelectedMeal(meal);
+      setError('');
+      setStatus(`Viewing ${meal.strMeal}.`);
+
+      window.requestAnimationFrame(() => {
+        document.getElementById('meal-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    } catch (incomingError) {
+      handleAppError(incomingError, 'Failed to load meal details.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  /**
-   * Handle keyboard navigation on meal cards
-   */
-  const handleMealKeydown = (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleMealClick(e);
+  const getRandomMeal = async () => {
+    setResults([]);
+    setSelectedMeal(null);
+    setLoadingState('Finding a random meal...');
+
+    try {
+      const data = await fetchJson(`${API_BASE}/random.php`);
+      const meal = data?.meals?.[0] || null;
+
+      if (!meal) {
+        setError('Failed to fetch a random meal.');
+        setStatus('');
+        return;
+      }
+
+      setSelectedMeal(meal);
+      setError('');
+      setStatus(`Random pick: ${meal.strMeal}.`);
+    } catch (incomingError) {
+      handleAppError(incomingError, 'Failed to fetch a random meal.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // ==================== INITIALIZATION ====================
+  const ingredients = selectedMeal ? extractIngredients(selectedMeal) : [];
 
-  /**
-   * Initialize event listeners
-   */
-  const init = () => {
-    // Form submission
-    DOM.submit.addEventListener('submit', searchMeal);
+  return (
+    <main className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
 
-    // Random meal button
-    DOM.random.addEventListener('click', getRandomMeal);
+      <section className="hero">
+        <p className="eyebrow">Meal Recipe Finder</p>
+        <h1>Find meals, open recipes, and explore random dishes.</h1>
+        <p className="hero-copy">
+          Search TheMealDB, inspect ingredients, and jump straight into detailed instructions.
+        </p>
 
-    // Meal card clicks with event delegation
-    DOM.mealsEl.addEventListener('click', handleMealClick);
-    DOM.mealsEl.addEventListener('keydown', handleMealKeydown);
+        <form className="search-bar" onSubmit={searchMeals}>
+          <label className="sr-only" htmlFor="search">
+            Search for meals
+          </label>
+          <input
+            id="search"
+            type="text"
+            placeholder="Search for meals or keywords"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+          />
+          <button type="submit" disabled={isLoading}>
+            Search
+          </button>
+          <button type="button" className="secondary" onClick={getRandomMeal} disabled={isLoading}>
+            Random meal
+          </button>
+        </form>
 
-    // Debounced search for real-time feedback (optional enhancement)
-    // You can enable this for search-as-you-type functionality
-    // DOM.search.addEventListener('input', debounce(searchMeal, CONFIG.DEBOUNCE_DELAY));
-  };
+        <div className="status-row" aria-live="polite" aria-atomic="true">
+          {isLoading ? <p className="status loading">Loading...</p> : null}
+          {!isLoading && status ? <p className="status">{status}</p> : null}
+          {error ? <p className="status error" role="alert">{error}</p> : null}
+        </div>
+      </section>
 
-  // ==================== PUBLIC API ====================
+      <section className="content-grid" id="main-content">
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Search results</h2>
+            <span>{results.length} meals</span>
+          </div>
 
-  return {
-    init
-  };
-})();
+          {results.length > 0 ? (
+            <div className="meals-grid" aria-label="Meal search results">
+              {results.map((meal) => (
+                <button key={meal.idMeal} type="button" className="meal-card" onClick={() => openMeal(meal.idMeal)}>
+                  <img src={meal.strMealThumb} alt={escapeHtml(meal.strMeal)} loading="lazy" />
+                  <div className="meal-card-overlay">
+                    <h3>{meal.strMeal}</h3>
+                    <span>Open recipe</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <p>Search for a meal to see matching dishes here.</p>
+            </div>
+          )}
+        </div>
 
-// Initialize app when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => MealFinder.init());
-} else {
-  MealFinder.init();
+        <aside className="panel recipe-panel" id="meal-details">
+          <div className="panel-header">
+            <h2>Recipe details</h2>
+          </div>
+
+          {selectedMeal ? (
+            <article className="recipe-card">
+              <img src={selectedMeal.strMealThumb} alt={selectedMeal.strMeal} />
+              <div className="recipe-meta">
+                {selectedMeal.strCategory ? <p><strong>Category:</strong> {selectedMeal.strCategory}</p> : null}
+                {selectedMeal.strArea ? <p><strong>Origin:</strong> {selectedMeal.strArea}</p> : null}
+                {selectedMeal.strTags ? <p><strong>Tags:</strong> {selectedMeal.strTags}</p> : null}
+              </div>
+
+              <section>
+                <h3>Instructions</h3>
+                <p>{selectedMeal.strInstructions}</p>
+              </section>
+
+              <section>
+                <h3>Ingredients</h3>
+                <ul className="ingredient-list">
+                  {ingredients.map((ingredient) => (
+                    <li key={ingredient}>{ingredient}</li>
+                  ))}
+                </ul>
+              </section>
+
+              {selectedMeal.strYoutube ? (
+                <a className="video-link" href={selectedMeal.strYoutube} target="_blank" rel="noreferrer">
+                  Watch on YouTube
+                </a>
+              ) : null}
+            </article>
+          ) : (
+            <div className="empty-state detail-empty">
+              <p>Select a meal card or use Random meal to see the recipe here.</p>
+            </div>
+          )}
+        </aside>
+      </section>
+    </main>
+  );
 }
+
+export default App;
