@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
+import HeroSection from './components/HeroSection.jsx';
+import MealsGrid from './components/MealsGrid.jsx';
+import RecipeDetails from './components/RecipeDetails.jsx';
+import SearchBar from './components/SearchBar.jsx';
+import StatusMessage from './components/StatusMessage.jsx';
 
 const API_BASE = 'https://www.themealdb.com/api/json/v1/1';
 const CACHE_DURATION = 30 * 60 * 1000;
@@ -28,19 +33,6 @@ function App() {
       }
     };
   }, []);
-
-  const escapeHtml = (value) =>
-    String(value ?? '').replace(/[&<>"']/g, (character) => {
-      const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;',
-      };
-
-      return map[character];
-    });
 
   const getCacheKey = (type, value) => `${type}:${value}`;
 
@@ -261,38 +253,17 @@ function App() {
         Skip to main content
       </a>
 
-      <section className="hero">
-        <p className="eyebrow">Meal Recipe Finder</p>
-        <h1>Find meals, open recipes, and explore random dishes.</h1>
-        <p className="hero-copy">
-          Search TheMealDB, inspect ingredients, and jump straight into detailed instructions.
-        </p>
+      <HeroSection>
+        <SearchBar
+          searchText={searchText}
+          onSearchTextChange={setSearchText}
+          onSubmit={searchMeals}
+          onRandom={getRandomMeal}
+          isLoading={isLoading}
+        />
 
-        <form className="search-bar" onSubmit={searchMeals}>
-          <label className="sr-only" htmlFor="search">
-            Search for meals
-          </label>
-          <input
-            id="search"
-            type="text"
-            placeholder="Search for meals or keywords"
-            value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
-          />
-          <button type="submit" disabled={isLoading}>
-            Search
-          </button>
-          <button type="button" className="secondary" onClick={getRandomMeal} disabled={isLoading}>
-            Random meal
-          </button>
-        </form>
-
-        <div className="status-row" aria-live="polite" aria-atomic="true">
-          {isLoading ? <p className="status loading">Loading...</p> : null}
-          {!isLoading && status ? <p className="status">{status}</p> : null}
-          {error ? <p className="status error" role="alert">{error}</p> : null}
-        </div>
-      </section>
+        <StatusMessage isLoading={isLoading} status={status} error={error} />
+      </HeroSection>
 
       <section className="content-grid" id="main-content">
         <div className="panel">
@@ -301,23 +272,7 @@ function App() {
             <span>{results.length} meals</span>
           </div>
 
-          {results.length > 0 ? (
-            <div className="meals-grid" aria-label="Meal search results">
-              {results.map((meal) => (
-                <button key={meal.idMeal} type="button" className="meal-card" onClick={() => openMeal(meal.idMeal)}>
-                  <img src={meal.strMealThumb} alt={escapeHtml(meal.strMeal)} loading="lazy" />
-                  <div className="meal-card-overlay">
-                    <h3>{meal.strMeal}</h3>
-                    <span>Open recipe</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <p>Search for a meal to see matching dishes here.</p>
-            </div>
-          )}
+          <MealsGrid meals={results} onMealSelect={openMeal} />
         </div>
 
         <aside className="panel recipe-panel" id="meal-details">
@@ -325,40 +280,7 @@ function App() {
             <h2>Recipe details</h2>
           </div>
 
-          {selectedMeal ? (
-            <article className="recipe-card">
-              <img src={selectedMeal.strMealThumb} alt={selectedMeal.strMeal} />
-              <div className="recipe-meta">
-                {selectedMeal.strCategory ? <p><strong>Category:</strong> {selectedMeal.strCategory}</p> : null}
-                {selectedMeal.strArea ? <p><strong>Origin:</strong> {selectedMeal.strArea}</p> : null}
-                {selectedMeal.strTags ? <p><strong>Tags:</strong> {selectedMeal.strTags}</p> : null}
-              </div>
-
-              <section>
-                <h3>Instructions</h3>
-                <p>{selectedMeal.strInstructions}</p>
-              </section>
-
-              <section>
-                <h3>Ingredients</h3>
-                <ul className="ingredient-list">
-                  {ingredients.map((ingredient) => (
-                    <li key={ingredient}>{ingredient}</li>
-                  ))}
-                </ul>
-              </section>
-
-              {selectedMeal.strYoutube ? (
-                <a className="video-link" href={selectedMeal.strYoutube} target="_blank" rel="noreferrer">
-                  Watch on YouTube
-                </a>
-              ) : null}
-            </article>
-          ) : (
-            <div className="empty-state detail-empty">
-              <p>Select a meal card or use Random meal to see the recipe here.</p>
-            </div>
-          )}
+          <RecipeDetails meal={selectedMeal} ingredients={ingredients} />
         </aside>
       </section>
     </main>
