@@ -1,12 +1,16 @@
 
 .app-shell {
-	min-height: 100vh;
+	height: 100%;
+	width: 100%;
 	padding: 2rem;
 	color: var(--text-primary);
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
 }
 
 .hero {
-	max-width: 72rem;
+	width: 100rem;
 	margin: 0 auto 2rem;
 	padding: 2rem;
 	border: 1px solid var(--border-color);
@@ -127,7 +131,7 @@
 	display: grid;
 	grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 0.95fr);
 	gap: 1.5rem;
-	max-width: 72rem;
+	width: 100rem;
 	margin: 0 auto;
 }
 
