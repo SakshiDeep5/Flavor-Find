@@ -15,7 +15,12 @@
 	padding: 2rem;
 	border: 1px solid var(--border-color);
 	border-radius: 2rem;
-	background: linear-gradient(180deg, rgba(12, 18, 28, 0.92), rgba(10, 14, 22, 0.82));
+	background-image: 
+		linear-gradient(180deg, rgba(255, 0, 0, 0.2), rgba(140,217,140)),
+		url('https://images.unsplash.com/photo-1599297915243-ba242cff4073?q=80&w=1332&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+	background-size: cover;
+	background-position: center;
+	background-attachment: fixed;
 	box-shadow: var(--shadow-lg);
 	backdrop-filter: blur(18px);
 }
@@ -139,7 +144,8 @@
 	padding: 1.25rem;
 	border: 1px solid var(--border-color);
 	border-radius: 1.5rem;
-	background: rgba(8, 12, 18, 0.72);
+	background: rgb(242, 242, 242)
+;
 	box-shadow: var(--shadow-md);
 }
 
