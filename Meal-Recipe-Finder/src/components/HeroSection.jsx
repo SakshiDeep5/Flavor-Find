@@ -4,7 +4,7 @@ function HeroSection({ children }) {
       <p className="eyebrow">Meal Recipe Finder</p>
       <h1>Find meals, open recipes, and explore random dishes.</h1>
       <p className="hero-copy">
-        Search TheMealDB, inspect ingredients, and jump straight into detailed instructions.
+        Search Meal Recipe, inspect ingredients, and jump straight into detailed instructions.
       </p>
       {children}
     </section>

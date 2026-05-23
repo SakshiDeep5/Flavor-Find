@@ -2,7 +2,7 @@ function SearchBar({ searchText, onSearchTextChange, onSubmit, onRandom, isLoadi
   return (
     <form className="search-bar" onSubmit={onSubmit}>
       <label className="sr-only" htmlFor="search">
-        Search for meals
+        Search for meal Recipes
       </label>
       <input
         id="search"
